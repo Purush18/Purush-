@@ -1,0 +1,132 @@
+resource group rg-atm-monitor
+first we created iot hub with name "atm-monitor-iothub-az"
+
+then  we created 2 devices:
+temperature-monitor
+cashFlow-monitor
+
+
+then create service bus name "atm-monitor-servicebus-az"
+in that create topic with name "atm-monitor-servicebus-topic"
+in that topic create subscription with name "atm-monitor-servicebus-topic-subscription"
+
+
+then we create data server in data base name "atm-monitor-server"
+admin login credentials
+spring.datasource.username=atm
+spring.datasource.password=Monitor@2025
+then database name is "atm-monitor-db"
+
+
+in that give create this tables 
+===================================================================================
+-- Create Location table first (since it will be referenced by ATMDetails)
+CREATE TABLE Location (
+    LocationId NVARCHAR(50) PRIMARY KEY,
+    LocationName NVARCHAR(100) NOT NULL,
+    Address NVARCHAR(255),
+    City NVARCHAR(100),
+    State NVARCHAR(100),
+    PostalCode NVARCHAR(20)
+);
+
+
+-- Create ATMDetails table with reference to Location
+CREATE TABLE ATMDetails (
+    ATMLogId INT PRIMARY KEY AUTO_INCREMENT,
+    ATMId VARCHAR(100),
+    ATMName VARCHAR(100),
+    status VARCHAR(20) NOT NULL,
+    LocationId VARCHAR(255),
+    temp_c_th FLOAT,
+    cash_t_th DECIMAL(18,2)
+);
+
+
+-- Create TemperatureLogs table with reference to ATMDetails
+CREATE TABLE TemperatureLogs (
+    temlogid INT IDENTITY(1,1) PRIMARY KEY,
+    connectionDeviceId NVARCHAR(100) NOT NULL,
+    timestamp DATETIME2 NOT NULL,
+    temperature_kvalue DECIMAL(10, 2),
+    temperature_cvalue DECIMAL(10, 2),
+    CONSTRAINT FK_TemperatureLogs_ATMDetails FOREIGN KEY (connectionDeviceId)
+    REFERENCES ATMDetails(ATMId)
+);
+
+
+-- Create CashStatusLogs table with reference to ATMDetails
+CREATE TABLE CashStatusLogs (
+    cashlogid INT IDENTITY(1,1) PRIMARY KEY,
+    connectionDeviceId NVARCHAR(100) NOT NULL,
+    timestamp DATETIME2 NOT NULL,
+    notes100 INT,
+    notes200 INT,
+    notes500 INT,
+    totalamount DECIMAL(19, 2),
+    CONSTRAINT FK_CashStatusLogs_ATMDetails FOREIGN KEY (connectionDeviceId)
+    REFERENCES ATMDetails(ATMId)
+);
+
+
+-- Create Users table
+CREATE TABLE Users (
+    id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(10) NOT NULL CHECK (role IN ('admin', 'techie')),
+    security_question NVARCHAR(255) NOT NULL,
+    security_answer NVARCHAR(255) NOT NULL
+);
+========================================================================================
+route from iot hub to service bus to send temperature data through route
+==========================================================================
+
+next go into iot hub that already created in that go to message routing click add route
+give end type as service bus topic
+give endpoint name as "temp-servicebus-endpoint" and also give the service bus name as given above and also topic name
+and create the route
+
+route
+
+give route name as temperature-route
+type:'temperature'
+and then create + skip enrichments
+.......................................................................................
+if the data is sent to service bus via route then java code will take it to database
+--------------------------------------------------------------------------------------
+
+
+
+==========================================================
+next create stream analytics job for sending cash data
+-----------------------------------------------------------------
+
+name of stream analytics is cash-stream-analytics
+go into it and into query option
+create input there as iot hub
+create outpute there and select as sql database and there give 
+
+and the query is 
+
+SELECT
+    connectionDeviceId,
+    timestamp,
+    notes100,
+    notes200,
+    notes500,
+    totalamount
+INTO
+    [atm-monitor-db]
+FROM
+    [atm-monitor-iothub-azure] a
+where a.type='cash';
+===========================================================================
+
+
+
+
+
+
+
+
